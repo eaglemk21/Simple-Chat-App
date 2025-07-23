@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Simple Chat App</title>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.24.7/babel.min.js"></script>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    function App() {
+      const [username, setUsername] = useState('');
+      const [message, setMessage] = useState('');
+      const [messages, setMessages] = useState([]);
+      const [isJoined, setIsJoined] = useState(false);
+      const [userList, setUserList] = useState([]);
+      const socket = io();
+
+      useEffect(() => {
+        socket.on('message', (msg) => {
+          setMessages((prev) => [...prev, msg]);
+        });
+        socket.on('initialMessages', (msgs) => {
+          setMessages(msgs);
+        });
+        socket.on('userList', (users) => {
+          setUserList(users);
+        });
+        socket.on('deleteMessage', (messageId) => {
+          setMessages((prev) => prev.filter((msg) => msg.id !== messageId));
+        });
+
+        return () => socket.disconnect();
+      }, []);
+
+      const handleJoin = () => {
+        if (username.trim()) {
+          socket.emit('join', username);
+          setIsJoined(true);
+        }
+      };
+
+      const handleLeave = () => {
+        socket.emit('leave', username);
+        setIsJoined(false);
+        setUsername('');
+        setMessages([]);
+      };
+
+      const sendMessage = (e) => {
+        e.preventDefault();
+        if (message.trim()) {
+          socket.emit('chatMessage', message);
+          setMessage('');
+        }
+      };
+
+      const handleDeleteMessage = (messageId) => {
+        socket.emit('deleteMessage', messageId);
+      };
+
+      return (
+        <div className="min-h-screen bg-gray-100 flex flex-col items-center p-4">
+          {!isJoined ? (
+            <div className="w-full max-w-md bg-white p-6 rounded-lg shadow-md">
+              <h1 className="text-2xl font-bold mb-4 text-center">Join Chat</h1>
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="Enter your username"
+                className="w-full p-2 mb-4 border rounded"
+              />
+              <button
+                onClick={handleJoin}
+                className="w-full bg-blue-500 text-white p-2 rounded hover:bg-blue-600"
+              >
+                Join
+              </button>
+            </div>
+          ) : (
+            <div className="w-full max-w-md bg-white p-6 rounded-lg shadow-md flex flex-col h-[500px]">
+              <div className="flex justify-between items-center mb-4">
+                <h1 className="text-2xl font-bold">Chat Room</h1>
+                <button
+                  onClick={handleLeave}
+                  className="bg-red-500 text-white p-2 rounded hover:bg-red-600"
+                >
+                  Leave Chat
+                </button>
+              </div>
+              <div className="mb-4">
+                <h2 className="text-lg font-semibold">Online Users:</h2>
+                <ul className="list-disc pl-5">
+                  {userList.map((user, index) => (
+                    <li key={index} className="text-sm">{user}</li>
+                  ))}
+                </ul>
+              </div>
+              <div className="flex-1 overflow-y-auto mb-4 p-2 border rounded">
+                {messages.map((msg, index) => (
+                  <div key={msg.id} className="mb-2 flex justify-between items-start">
+                    <div>
+                      <span className="text-gray-500 text-sm">{msg.time} </span>
+                      <span className="font-semibold">{msg.user}: </span>
+                      <span>{msg.text}</span>
+                    </div>
+                    {msg.user === username && msg.user !== 'System' && (
+                      <button
+                        onClick={() => handleDeleteMessage(msg.id)}
+                        className="ml-2 text-red-500 hover:text-red-700 text-sm"
+                      >
+                        Delete
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <form onSubmit={sendMessage} className="flex gap-2">
+                <input
+                  type="text"
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  placeholder="Type a message"
+                  className="flex-1 p-2 border rounded"
+                />
+                <button
+                  type="submit"
+                  className="bg-blue-500 text-white p-2 rounded hover:bg-blue-600"
+                >
+                  Send
+                </button>
+              </form>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    ReactDOM.render(<App />, document.getElementById('root'));
+  </script>
+</body>
+</html>
